@@ -48,6 +48,7 @@ using Common = Microsoft.ProjectOxford.Common;
 using FaceAPI = Microsoft.ProjectOxford.Face;
 using VisionAPI = Microsoft.ProjectOxford.Vision;
 
+
 namespace LiveCameraSample
 {
     /// <summary>
@@ -67,8 +68,15 @@ namespace LiveCameraSample
         private AppMode _mode;
         private DateTime _startTime;
 
+        public string hostname = "josesoares.sharefile.com";
+        public string username = "joseotavioperotti@gmail.com";
+        public string password = "P@ssJune2018";
+        public string clientId = "GhlcBf38DW5fdgx5XOI0ftdvZb7EOp7L";
+        public string clientSecret = "sX4ipNmrUZ2eBfuOcDUcD7aOo2vHz8yUYKkAmxqyhpXF3JCm";
+
         public enum AppMode
-        {
+        {            
+            Authorize,
             Faces,
             Emotions,
             EmotionsWithClientFaceDetect,
@@ -226,6 +234,62 @@ namespace LiveCameraSample
             };
         }
 
+        /// <summary> Function which submits a frame to the Emotion API. </summary>
+        /// <param name="frame"> The video frame to submit. </param>
+        /// <returns> A <see cref="Task{LiveCameraResult}"/> representing the asynchronous API call,
+        ///     and containing the emotions returned by the API. </returns>
+        private async Task<LiveCameraResult> AuthorizedFacesFunction(VideoFrame frame)
+        {
+            // Encode image. 
+            var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
+            // Submit image to API. 
+          
+            var personNames = new List<string>();
+            // See if we have local face detections for this image.
+            var localFaces = (OpenCvSharp.Rect[])frame.UserData;
+            
+            Properties.Settings.Default.FaceAPICallCount++;
+            var faces = await _faceClient.DetectAsync(jpg);
+            var faceIds = faces.Select(face => face.FaceId).ToArray();
+
+            var results = await _faceClient.IdentifyAsync("myfriends", faceIds);
+            foreach (var identifyResult in results)
+            {
+                Console.WriteLine("Result of face: {0}", identifyResult.FaceId);
+                if (identifyResult.Candidates.Length == 0)
+                {
+                    Console.WriteLine("No one identified");
+                    personNames.Add("No one identified");
+
+                    //Lock Workstation
+                    Security.LockWorkStation();
+
+                    //Call Citrix Analytics Service - Service Bus Call to log action
+                    //AnalyticsServiceBus cas = new AnalyticsServiceBus();
+                    //cas.MainAsync().GetAwaiter().GetResult();
+                }
+                else
+                {
+                                        
+                    //OAuth2Token token = ShareFileV3Sample.Authenticate(hostname, clientId, clientSecret, username, password);
+                    //var hostname2 = ShareFileV3Sample.GetHostname(token);
+
+                    // Get top 1 among all candidates returned
+                    var candidateId = identifyResult.Candidates[0].PersonId;
+                    var person = await _faceClient.GetPersonAsync("myfriends", candidateId);
+                    Console.WriteLine("Identified as {0}", person.Name);
+                    personNames.Add(person.Name);
+                }
+            }
+
+            // Output. 
+            return new LiveCameraResult
+            {
+                Faces = faces.Select(e => CreateFace(e.FaceRectangle)).ToArray(), PersonNames = personNames
+            };
+
+        }
+
         /// <summary> Function which submits a frame to the Computer Vision API for tagging. </summary>
         /// <param name="frame"> The video frame to submit. </param>
         /// <returns> A <see cref="Task{LiveCameraResult}"/> representing the asynchronous API call,
@@ -285,7 +349,7 @@ namespace LiveCameraSample
                     MatchAndReplaceFaceRectangles(result.Faces, clientFaces);
                 }
 
-                visImage = Visualization.DrawFaces(visImage, result.Faces, result.EmotionScores, result.CelebrityNames);
+                visImage = Visualization.DrawFaces(visImage, result.Faces, result.EmotionScores, result.CelebrityNames, result.PersonNames);
                 visImage = Visualization.DrawTags(visImage, result.Tags);
             }
 
@@ -337,6 +401,9 @@ namespace LiveCameraSample
                 case AppMode.Emotions:
                     _grabber.AnalysisFunction = EmotionAnalysisFunction;
                     break;
+                case AppMode.Authorize:
+                        _grabber.AnalysisFunction = AuthorizedFacesFunction;
+                        break;
                 case AppMode.EmotionsWithClientFaceDetect:
                     // Same as Emotions, except we will display the most recent faces combined with
                     // the most recent API results. 

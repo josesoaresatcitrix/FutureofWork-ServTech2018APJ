@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:LiveCameraSample"
         mc:Ignorable="d"
-        Title="LiveCameraSample" Height="550" Width="725">
+        Title="Future of Work - ServTech 2018 APJ" Height="550" Width="725">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="35" />

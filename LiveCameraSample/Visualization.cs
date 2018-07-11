@@ -48,7 +48,9 @@ namespace LiveCameraSample
 {
     public class Visualization
     {
-        private static SolidColorBrush s_lineBrush = new SolidColorBrush(new System.Windows.Media.Color { R = 255, G = 185, B = 0, A = 255 });
+        public static System.Windows.Media.Color col = (System.Windows.Media.Color)ColorConverter.ConvertFromString("Red");
+        private static SolidColorBrush s_lineBrush = new SolidColorBrush(col);
+
         private static Typeface s_typeface = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
 
         private static BitmapSource DrawOverlay(BitmapSource baseImage, Action<DrawingContext, double> drawAction)
@@ -101,7 +103,7 @@ namespace LiveCameraSample
             return DrawOverlay(baseImage, drawAction);
         }
 
-        public static BitmapSource DrawFaces(BitmapSource baseImage, FaceAPI.Face[] faces, EmotionScores[] emotionScores, string[] celebName)
+        public static BitmapSource DrawFaces(BitmapSource baseImage, FaceAPI.Face[] faces, EmotionScores[] emotionScores, string[] celebName, List<string> personName)
         {
             if (faces == null)
             {
@@ -110,31 +112,34 @@ namespace LiveCameraSample
 
             Action<DrawingContext, double> drawAction = (drawingContext, annotationScale) =>
             {
-                for (int i = 0; i < faces.Length; i++)
+            for (int i = 0; i < faces.Length; i++)
+            {
+                var face = faces[i];
+                if (face.FaceRectangle == null) { continue; }
+
+                Rect faceRect = new Rect(
+                    face.FaceRectangle.Left, face.FaceRectangle.Top,
+                    face.FaceRectangle.Width, face.FaceRectangle.Height);
+                string text = "";
+
+                if (face.FaceAttributes != null)
                 {
-                    var face = faces[i];
-                    if (face.FaceRectangle == null) { continue; }
+                    text += Aggregation.SummarizeFaceAttributes(face.FaceAttributes);
+                }
 
-                    Rect faceRect = new Rect(
-                        face.FaceRectangle.Left, face.FaceRectangle.Top,
-                        face.FaceRectangle.Width, face.FaceRectangle.Height);
-                    string text = "";
+                if (emotionScores?[i] != null)
+                {
+                    text += Aggregation.SummarizeEmotion(emotionScores[i]);
+                }
 
-                    if (face.FaceAttributes != null)
-                    {
-                        text += Aggregation.SummarizeFaceAttributes(face.FaceAttributes);
-                    }
+                if (celebName?[i] != null)
+                {
+                    text += celebName[i];
+                }
 
-                    if (emotionScores?[i] != null)
-                    {
-                        text += Aggregation.SummarizeEmotion(emotionScores[i]);
-                    }
-
-                    if (celebName?[i] != null)
-                    {
-                        text += celebName[i];
-                    }
-
+                if (!string.IsNullOrEmpty(personName[i]))
+                    text += personName[i];
+ 
                     faceRect.Inflate(6 * annotationScale, 6 * annotationScale);
 
                     double lineThickness = 4 * annotationScale;

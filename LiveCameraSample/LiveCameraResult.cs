@@ -31,6 +31,8 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // 
 
+using System.Collections.Generic;
+
 namespace LiveCameraSample
 {
     // Class to hold all possible result types. 
@@ -40,5 +42,6 @@ namespace LiveCameraSample
         public Microsoft.ProjectOxford.Common.Contract.EmotionScores[] EmotionScores { get; set; } = null;
         public string[] CelebrityNames { get; set; } = null;
         public Microsoft.ProjectOxford.Vision.Contract.Tag[] Tags { get; set; } = null;
+        public List<string> PersonNames { get; set; } = null;
     }
 }
