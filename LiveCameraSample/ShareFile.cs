@@ -482,7 +482,28 @@ namespace LiveCameraSample
             response.Close();
         }
 
-      
+        public static bool GetAccessControlPrincipal(OAuth2Token token, string principalId, string folderitemid)
+        {
+            String uri = string.Format("https://{0}/sf/v3/Items({1})/AccessControls", ShareFileV3Sample.GetHostname(token), folderitemid, principalId);
+            Console.WriteLine(uri);
+
+            HttpWebRequest request = WebRequest.CreateHttp(uri);
+            ShareFileV3Sample.addAuthorizationHeader(request, token);
+
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            Console.WriteLine(response.StatusCode);
+            using (var reader = new StreamReader(response.GetResponseStream()))
+            {
+                String body = reader.ReadToEnd();
+                if (body.Contains(principalId))
+                    return true;
+                else
+                    return false;              
+            }
+          
+        }
+
+
     }
 }
 

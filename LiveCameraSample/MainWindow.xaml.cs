@@ -34,12 +34,15 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using Microsoft.ProjectOxford.Face.Contract;
 using Newtonsoft.Json;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
@@ -73,6 +76,12 @@ namespace LiveCameraSample
         public string password = "P@ssJune2018";
         public string clientId = "GhlcBf38DW5fdgx5XOI0ftdvZb7EOp7L";
         public string clientSecret = "sX4ipNmrUZ2eBfuOcDUcD7aOo2vHz8yUYKkAmxqyhpXF3JCm";
+        public string AaronPrincipalID = "fd6ca6d2-8b57-4699-89ba-fed30b281de4";
+        public string JosePrincipalID = "77bf01f2-a357-48a0-bd66-1d2b941c9f18";
+        public string ConfidentialFolderID = "fof26121-0c6b-4e8e-a175-c3e47402bb88";
+        public string personGroupId = "myfr";
+
+        public int milliseconds = 5000;
 
         public enum AppMode
         {            
@@ -81,12 +90,12 @@ namespace LiveCameraSample
             Emotions,
             EmotionsWithClientFaceDetect,
             Tags,
-            Celebrities
+            Celebrities           
         }
 
         public MainWindow()
         {
-            InitializeComponent();
+            InitializeComponent();           
 
             // Create grabber. 
             _grabber = new FrameGrabber<LiveCameraResult>();
@@ -243,51 +252,162 @@ namespace LiveCameraSample
             // Encode image. 
             var jpg = frame.Image.ToMemoryStream(".jpg", s_jpegParams);
             // Submit image to API. 
-          
+            Face[] faces = null;
+
             var personNames = new List<string>();
             // See if we have local face detections for this image.
             var localFaces = (OpenCvSharp.Rect[])frame.UserData;
-            
-            Properties.Settings.Default.FaceAPICallCount++;
-            var faces = await _faceClient.DetectAsync(jpg);
-            var faceIds = faces.Select(face => face.FaceId).ToArray();
 
-            var results = await _faceClient.IdentifyAsync("myfriends", faceIds);
-            foreach (var identifyResult in results)
+            if (localFaces == null || localFaces.Count() > 0)
             {
-                Console.WriteLine("Result of face: {0}", identifyResult.FaceId);
-                if (identifyResult.Candidates.Length == 0)
-                {
-                    Console.WriteLine("No one identified");
-                    personNames.Add("No one identified");
+                Console.WriteLine("OpenCVSharp found faces and will submit to API");
+                string authOK = "Authorized";
 
-                    //Lock Workstation
-                    Security.LockWorkStation();
+                Properties.Settings.Default.FaceAPICallCount++;
+                faces = await _faceClient.DetectAsync(jpg);
+                var faceIds = faces.Select(face => face.FaceId).ToArray();
 
-                    //Call Citrix Analytics Service - Service Bus Call to log action
-                    //AnalyticsServiceBus cas = new AnalyticsServiceBus();
-                    //cas.MainAsync().GetAwaiter().GetResult();
+                if (faceIds != null) {
+
+                    var results = await _faceClient.IdentifyAsync(personGroupId, faceIds);
+                    foreach (var identifyResult in results)
+                    {
+                        Console.WriteLine("Result of face: {0}", identifyResult.FaceId);
+                        if (identifyResult.Candidates.Length == 0)
+                        {
+                            personNames.Add("NotAuthorized");
+                        }
+                        else
+                        {
+                            // Get top 1 among all candidates returned
+                            var candidateId = identifyResult.Candidates[0].PersonId;
+                            var person = await _faceClient.GetPersonAsync(personGroupId, candidateId);
+
+                            Console.WriteLine("Identified as {0}", person.Name);
+
+                            if (person.Name.Contains("Jose"))
+                            {
+                                OAuth2Token token = ShareFileV3Sample.Authenticate(hostname, clientId, clientSecret, username, password);
+                                bool isAllowed = ShareFileV3Sample.GetAccessControlPrincipal(token, JosePrincipalID, ConfidentialFolderID);
+                                if (!isAllowed)
+                                {
+                                    authOK = "JoseNotAuthorized";
+                                    //Thread.Sleep(milliseconds);
+                                    //Security.LockWorkStation();
+                                }
+
+                            }
+
+                            if (person.Name.Contains("Aaron"))
+                            {
+                                OAuth2Token token = ShareFileV3Sample.Authenticate(hostname, clientId, clientSecret, username, password);
+                                bool isAllowed = ShareFileV3Sample.GetAccessControlPrincipal(token, AaronPrincipalID, ConfidentialFolderID);
+                                if (!isAllowed)
+                                {
+                                    authOK = "AaronNotAuthorized";
+                                    //Thread.Sleep(milliseconds);
+                                    //Security.LockWorkStation();
+                                }
+                            }
+
+                            personNames.Add(authOK + person.Name);
+
+
+                        }
+                    }
+
                 }
-                else
-                {
-                                        
-                    //OAuth2Token token = ShareFileV3Sample.Authenticate(hostname, clientId, clientSecret, username, password);
-                    //var hostname2 = ShareFileV3Sample.GetHostname(token);
 
-                    // Get top 1 among all candidates returned
-                    var candidateId = identifyResult.Candidates[0].PersonId;
-                    var person = await _faceClient.GetPersonAsync("myfriends", candidateId);
-                    Console.WriteLine("Identified as {0}", person.Name);
-                    personNames.Add(person.Name);
-                }
+               
             }
-
+            else
+            {
+                Console.WriteLine("Local face detection found no faces; don't call Cognitive Services");
+                // Local face detection found no faces; don't call Cognitive Services.
+                faces = new Face[0];
+            }
             // Output. 
             return new LiveCameraResult
             {
                 Faces = faces.Select(e => CreateFace(e.FaceRectangle)).ToArray(), PersonNames = personNames
             };
 
+        }
+
+        /// <summary> Function which submits a frame to the Emotion API. </summary>
+        /// <param name="frame"> The video frame to submit. </param>
+        /// <returns> A <see cref="Task{LiveCameraResult}"/> representing the asynchronous API call,
+        ///     and containing the emotions returned by the API. </returns>
+        private async Task TrainCognitiveServicesAsync()
+        {
+            _faceClient = new FaceAPI.FaceServiceClient(Properties.Settings.Default.FaceAPIKey, Properties.Settings.Default.FaceAPIHost);
+
+            var pgexists = await _faceClient.GetPersonGroupAsync(personGroupId);
+            if (pgexists == null)
+            {
+                await _faceClient.CreatePersonGroupAsync(personGroupId, "My Friends");
+            }           
+
+            // Define Jose
+            CreatePersonResult Josefriend = await _faceClient.CreatePersonAsync(
+                // Id of the PersonGroup that the person belonged to
+                personGroupId,
+                // Name of the person
+                "Jose"
+            );
+
+            // Define Jose
+            CreatePersonResult Aaronfriend = await _faceClient.CreatePersonAsync(
+                // Id of the PersonGroup that the person belonged to
+                personGroupId,
+                // Name of the person
+                "Aaron"
+            );
+
+            // Directory contains image files of Anna
+            const string JoseImageDir = @"C:\Users\joseo\source\repos\FutureofWork-ServTechAPJ2018\FutureofWork-ServTech2018APJ\LiveCameraSample\Pictures\Jose\";
+
+            foreach (string imagePath in Directory.GetFiles(JoseImageDir, "*.jpg"))
+            {
+                using (Stream s = File.OpenRead(imagePath))
+                {
+                    // Detect faces in the image and add to Anna
+                    await _faceClient.AddPersonFaceAsync(
+                        personGroupId, Josefriend.PersonId, s);
+                }
+            }
+            // Do the same for Bill and Clare
+
+            const string AaronImageDir = @"C:\Users\joseo\source\repos\FutureofWork-ServTechAPJ2018\FutureofWork-ServTech2018APJ\LiveCameraSample\Pictures\Aaron\";
+
+            foreach (string imagePath in Directory.GetFiles(AaronImageDir, "*.jpg"))
+            {
+                using (Stream s = File.OpenRead(imagePath))
+                {
+                    // Detect faces in the image and add to Anna
+                    await _faceClient.AddPersonFaceAsync(
+                        personGroupId, Aaronfriend.PersonId, s);
+                }
+            }
+            // Do the same for Bill and Clare
+
+
+            await _faceClient.TrainPersonGroupAsync(personGroupId);
+
+            TrainingStatus trainingStatus = null;
+            while (true)
+            {
+                trainingStatus = await _faceClient.GetPersonGroupTrainingStatusAsync(personGroupId);
+
+                if (trainingStatus.Status != Status.Running)
+                {
+                    break;
+                }
+
+                await Task.Delay(1000);
+            }
+
+            Console.Write("Training successfully completed");
         }
 
         /// <summary> Function which submits a frame to the Computer Vision API for tagging. </summary>
@@ -403,7 +523,7 @@ namespace LiveCameraSample
                     break;
                 case AppMode.Authorize:
                         _grabber.AnalysisFunction = AuthorizedFacesFunction;
-                        break;
+                        break;            
                 case AppMode.EmotionsWithClientFaceDetect:
                     // Same as Emotions, except we will display the most recent faces combined with
                     // the most recent API results. 
@@ -453,6 +573,11 @@ namespace LiveCameraSample
         private async void StopButton_Click(object sender, RoutedEventArgs e)
         {
             await _grabber.StopProcessingAsync();
+        }
+
+        private async void TrainButton_Click(object sender, RoutedEventArgs e)
+        {
+            await TrainCognitiveServicesAsync();
         }
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)

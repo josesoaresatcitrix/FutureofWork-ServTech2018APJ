@@ -126,6 +126,7 @@
     </ApplicationDefinition>
     <Compile Include="Aggregation.cs" />
     <Compile Include="CelebritiesResult.cs" />
+    <Compile Include="CognitiveServices.cs" />
     <Compile Include="LiveCameraResult.cs" />
     <Compile Include="Security.cs" />
     <Compile Include="Settings.cs" />
@@ -182,6 +183,10 @@
       <Project>{bec7da78-c953-4a72-924f-2749d1f9f18b}</Project>
       <Name>VideoFrameAnalyzer</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Pictures\Aaron\" />
+    <Folder Include="Pictures\Jose\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets" Condition="Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" />
