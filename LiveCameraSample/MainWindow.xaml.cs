@@ -272,7 +272,7 @@ namespace LiveCameraSample
                         Console.WriteLine("Result of face: {0}", identifyResult.FaceId);
                         if (identifyResult.Candidates.Length == 0)
                         {
-                            personNames.Add("Unknown");
+                            personNames.Add("Suspicious");
                         }
                         else
                         {
@@ -292,8 +292,7 @@ namespace LiveCameraSample
                                 }
                             }
                         }
-                    }
-              
+                    }             
                     
              }               
             }
