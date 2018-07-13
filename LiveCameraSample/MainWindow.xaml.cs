@@ -260,65 +260,42 @@ namespace LiveCameraSample
 
             if (localFaces == null || localFaces.Count() > 0)
             {
-                Console.WriteLine("OpenCVSharp found faces and will submit to API");
-                string authOK = "Authorized";
-
+                Console.WriteLine("OpenCVSharp found faces and will submit to API");               
                 Properties.Settings.Default.FaceAPICallCount++;
                 faces = await _faceClient.DetectAsync(jpg);
                 var faceIds = faces.Select(face => face.FaceId).ToArray();
-
-                if (faceIds != null) {
-
+                if (faceIds.Count() > 0)
+                {
                     var results = await _faceClient.IdentifyAsync(personGroupId, faceIds);
                     foreach (var identifyResult in results)
                     {
                         Console.WriteLine("Result of face: {0}", identifyResult.FaceId);
                         if (identifyResult.Candidates.Length == 0)
                         {
-                            personNames.Add("NotAuthorized");
+                            personNames.Add("Unknown");
                         }
                         else
                         {
                             // Get top 1 among all candidates returned
                             var candidateId = identifyResult.Candidates[0].PersonId;
                             var person = await _faceClient.GetPersonAsync(personGroupId, candidateId);
-
                             Console.WriteLine("Identified as {0}", person.Name);
-
-                            if (person.Name.Contains("Jose"))
-                            {
-                                OAuth2Token token = ShareFileV3Sample.Authenticate(hostname, clientId, clientSecret, username, password);
-                                bool isAllowed = ShareFileV3Sample.GetAccessControlPrincipal(token, JosePrincipalID, ConfidentialFolderID);
-                                if (!isAllowed)
-                                {
-                                    authOK = "JoseNotAuthorized";
-                                    //Thread.Sleep(milliseconds);
-                                    //Security.LockWorkStation();
-                                }
-
-                            }
+                            personNames.Add(person.Name);
 
                             if (person.Name.Contains("Aaron"))
                             {
                                 OAuth2Token token = ShareFileV3Sample.Authenticate(hostname, clientId, clientSecret, username, password);
                                 bool isAllowed = ShareFileV3Sample.GetAccessControlPrincipal(token, AaronPrincipalID, ConfidentialFolderID);
                                 if (!isAllowed)
-                                {
-                                    authOK = "AaronNotAuthorized";
-                                    //Thread.Sleep(milliseconds);
-                                    //Security.LockWorkStation();
+                                {                       
+                                    Security.LockWorkStation();
                                 }
                             }
-
-                            personNames.Add(authOK + person.Name);
-
-
                         }
                     }
-
-                }
-
-               
+              
+                    
+             }               
             }
             else
             {
